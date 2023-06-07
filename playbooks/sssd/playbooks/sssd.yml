@@ -1,0 +1,27 @@
+---
+- name: Unir equipo Debian al dominio de Active Directory
+  hosts: all
+  become: true
+  vars_files:
+    - vars.yml
+  pre_tasks:
+  
+    - name: Reemplazar resolv.conf
+      copy:
+        src: files/resolv.conf
+        dest: /etc/resolv.conf
+        owner: root
+        group: root
+        mode: '0744'
+  roles:
+    - domain_join
+ 
+  tasks:
+
+    - name: Reemplazar common-session
+      copy:
+        src: files/common-session
+        dest: /etc/pam.d/common-session
+        owner: root
+        group: root
+        mode: '0744'

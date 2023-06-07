@@ -1,0 +1,75 @@
+---
+- name: Instalación y configuración de GlusterFS
+  hosts: glusterfs_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Instalar paquetes necesarios
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - glusterfs-server
+        - glusterfs-client
+
+    - name: Iniciar servicio de GlusterFS
+      service:
+        name: glusterd
+        state: started
+        enabled: true
+
+    - name: Crear directorios para GlusterFS
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /data/brick1
+        - /data/brick2
+        
+    - name: Ejecutar comando lsblk
+      ansible.builtin.shell: lsblk /dev/sdb
+      register: lsblk_output
+      ignore_errors: true
+
+    - name: Comprobar existencia del disco
+      ansible.builtin.fail:
+        msg: "El disco /dev/sdb no existe en la máquina remota."
+      when: lsblk_output.rc != 0
+
+        
+    - name: Montar directorios en /etc/fstab
+      mount:
+        path: "{{ item }}"
+        src: "/dev/sdb"  # Reemplaza /dev/sdX con el dispositivo correspondiente a /data/brick1 en cada máquina
+        fstype: xfs
+        opts: defaults
+        state: mounted
+        dump: 0
+        passno: 2
+      loop:
+        - /data/brick1
+        - /data/brick2
+
+
+    - name: Reiniciar servicio de GlusterFS
+      service:
+        name: glusterd
+        state: restarted
+        enabled: true
+
+    - name: Añadir peers al cluster
+      shell: gluster peer probe {{ hostvars[item]['ansible_host'] }}
+      loop: "{{ groups['glusterfs_cluster'] }}"
+      when: inventory_hostname != hostvars[item]['ansible_hostname']
+
+    - name: Crear volumen de GlusterFS
+      shell: gluster volume create vol_replica replica 2 transport tcp {{ hostvars[item]['ansible_host'] }}:/data/brick1 {{ hostvars[item]['ansible_host'] }}:/data/brick2 force
+      loop: "{{ groups['glusterfs_cluster'] }}"
+      when: inventory_hostname == groups['glusterfs_cluster'][0]
+
+    - name: Iniciar volumen de GlusterFS
+      shell: gluster volume start vol_replica
+      when: inventory_hostname == groups['glusterfs_cluster'][0]

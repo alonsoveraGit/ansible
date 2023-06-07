@@ -1,0 +1,3 @@
+---
+- import_playbook: dockercommon.yml
+- import_playbook: jenkins.yml
