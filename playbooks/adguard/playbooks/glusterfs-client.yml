@@ -1,0 +1,42 @@
+---
+- name: Instalar cliente de GlusterFS
+  hosts: glusterfs_clients
+  become: true
+  tasks:
+    - name: Actualizar sistema
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Instalar paquete del cliente de GlusterFS
+      apt:
+        name: glusterfs-client
+        state: present
+
+    - name: Comprobar existencia del directorio de montaje
+      stat:
+        path: /docker
+      register: mount_dir
+
+    - name: Crear directorio de montaje si no existe
+      file:
+        path: /docker
+        state: directory
+      when: not mount_dir.stat.exists
+
+    - name: Montar el volumen GlusterFS
+      mount:
+        fstype: glusterfs
+        src: "{{ glusterfs_server_ip }}:/docker"
+        path: /docker
+        state: mounted
+
+- name: Persistir montaje en /etc/fstab
+  hosts: glusterfs_clients
+  become: true
+  tasks:
+    - name: Agregar entrada en /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ glusterfs-px }}:/docker /docker glusterfs defaults,_netdev 0 0"
+        state: present
