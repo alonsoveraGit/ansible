@@ -1,0 +1,25 @@
+---
+- name: Instalar GlusterFS cliente y configurar fstab
+  hosts: DockerSwarm
+  become: true
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Crear directorio /docker
+      file:
+        path: /docker
+        state: directory
+
+    - name: Instalar paquetes de GlusterFS cliente
+      apt:
+        name: glusterfs-client
+        state: present
+
+    - name: Anadir entrada en fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ gluster_proxy_ip }}:/docker /docker glusterfs defaults,_netdev 0 0"
+        state: present
+        create: yes
+        backup: yes

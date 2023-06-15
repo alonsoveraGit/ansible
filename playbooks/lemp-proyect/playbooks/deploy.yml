@@ -1,0 +1,75 @@
+---
+- hosts: DockerSwarm
+
+  vars_files:
+    - vars.yml 
+    
+  tasks:
+  
+    - name: Install Docker
+      become: true
+      apt:
+        name: docker.io
+        update_cache: yes
+        state: present
+        
+    - name: Install pip
+      become: true
+      apt:
+        name: pip
+        update_cache: yes
+        state: present
+
+    - name: Install Docker Python library
+      become: true
+      pip:
+        name: docker
+
+
+    - name: Leave swarm for a node
+      community.docker.docker_swarm:
+        state: absent
+        force: true
+
+    - name: Inicializar el cluster de Docker Swarm
+      command: docker swarm init --advertise-addr {{ masterSwamr }}
+      when: inventory_hostname == 'DockerSwarm_01'
+
+    - name: Obtener token de union del cluster de Swarm
+      shell: docker swarm join-token -q worker
+      register: join_token
+      when: inventory_hostname == 'DockerSwarm_01'
+    
+        
+    
+        
+    - name: Extraer token de union del cluster de Swarm
+      set_fact:
+        extracted_token: "{{ join_token.stdout | regex_search('SWMTKN-.+') }}"
+      vars:
+        join_token: "{{ hostvars['DockerSwarm_01'].join_token }}"
+      when: inventory_hostname == 'DockerSwarm_01'
+      
+      
+    - name: verse
+      debug: 
+       var: extracted_token
+      
+    
+    - name: Unirse al cluster de Swarm como un trabajador
+      command: "docker swarm join --token {{ extracted_token['DockerSwarm_01'] }} {{ hostvars['DockerSwarm_01'].ansible_host }}"
+      when: inventory_hostname in ['DockerSwarm_02', 'DockerSwarm_03']
+
+#- hosts: DockerSwarm_01:DockerSwarm_02:DockerSwarm_03
+#  roles:
+#    - php_nginx
+
+    - name: Reiniciar Docker
+      service:
+        name: docker
+        state: restarted
+
+
+
+
+
